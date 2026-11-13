@@ -1,0 +1,34 @@
+name: 코디야 카톡발송 PC 프로그램 빌드
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 프로그램 만들기
+        run: |
+          pip install -r agent/requirements.txt pyinstaller==6.10.0
+          pyinstaller --noconfirm --noconsole --onedir --name CodiyaKakao --icon agent/app.ico --add-data "agent/app.ico;." --hidden-import pystray._win32 --paths agent agent/codiya_kakao.py
+
+      - name: 설치 파일 만들기 (Inno Setup)
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer.iss
+          Get-ChildItem out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CodiyaKakaoSetup-${{ github.run_number }}
+          path: out/CodiyaKakaoSetup.exe
+          retention-days: 30

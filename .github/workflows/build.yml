@@ -5,6 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -32,3 +35,15 @@ jobs:
           name: CodiyaKakaoSetup-${{ github.run_number }}
           path: out/CodiyaKakaoSetup.exe
           retention-days: 30
+
+      - name: 설치 파일을 builds 브랜치에 보관
+        shell: bash
+        run: |
+          mkdir -p /tmp/out && cp out/CodiyaKakaoSetup.exe /tmp/out/
+          cd /tmp/out
+          git init -q -b builds
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          echo "kakao pc build ${{ github.run_number }} / ${{ github.sha }}" > BUILD.txt
+          git add -A && git commit -q -m "kakao pc build ${{ github.run_number }}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" builds

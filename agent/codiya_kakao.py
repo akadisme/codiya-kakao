@@ -27,7 +27,7 @@ import winerror
 import kakao_core as kc
 
 APP_NAME = "코디야 카톡발송"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 API = "https://codiya.kr/appapi/kakao_pc.php"
 HOME = "https://codiya.kr/my/kakao.php"
 VER_URL = "https://api.codiya.kr/pc/kakao_version.json"

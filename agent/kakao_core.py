@@ -6,6 +6,7 @@ import io
 import logging
 import ntpath
 import os
+import re
 import subprocess
 import time
 

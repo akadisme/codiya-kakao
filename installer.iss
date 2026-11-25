@@ -1,5 +1,5 @@
 ﻿; 코디야 카톡발송 — 설치 파일 (관리자 권한 필요: 카카오톡이 관리자 권한으로 돌아서)
-#define AppVer "1.0.0"
+#define AppVer "1.0.1"
 [Setup]
 AppId={{6B1E2C7A-4D3F-4A8B-9C21-5E7D3F0A9B42}
 AppName=코디야 카톡발송

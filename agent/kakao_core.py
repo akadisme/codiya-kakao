@@ -8,6 +8,7 @@ import ntpath
 import os
 import re
 import subprocess
+import threading
 import time
 
 import win32api
@@ -308,14 +309,58 @@ def find_input(room_hwnd):
     raise KErr("room", "채팅 입력창을 찾지 못함")
 
 
+_TL = threading.local()
+
+
+def _clip_owner():
+    """클립보드 주인 창 (보이지 않는 창). 주인 없이 열면 EmptyClipboard 뒤 SetClipboardData 가
+    '핸들이 잘못되었습니다'(error 6)로 실패할 수 있어서 [1.0.2]"""
+    h = getattr(_TL, "hwnd", 0)
+    try:
+        if h and win32gui.IsWindow(h):
+            return h
+    except Exception:
+        pass
+    try:
+        h = win32gui.CreateWindowEx(0, "STATIC", "CodiyaKakaoClip", 0, 0, 0, 0, 0, win32con.HWND_MESSAGE, 0, 0, None)
+    except Exception:
+        try:
+            h = win32gui.CreateWindowEx(0, "STATIC", "CodiyaKakaoClip", 0, 0, 0, 0, 0, 0, 0, 0, None)
+        except Exception:
+            h = 0
+    _TL.hwnd = h
+    return h
+
+
 def open_clipboard():
+    owner = _clip_owner()
     for _ in range(60):  # 다른 프로그램이 잠깐 쥐고 있어도 최대 15초 기다림
         try:
-            win32clipboard.OpenClipboard()
+            win32clipboard.OpenClipboard(owner) if owner else win32clipboard.OpenClipboard()
             return
         except Exception:
             time.sleep(0.25)
     raise KErr("clipboard", "클립보드를 사용할 수 없음")
+
+
+def _put_clipboard(fmt, data):
+    """클립보드에 넣기 — 실패하면 잠깐 쉬고 다시 (최대 5번)"""
+    last = None
+    for i in range(5):
+        open_clipboard()
+        try:
+            win32clipboard.EmptyClipboard()
+            win32clipboard.SetClipboardData(fmt, data)
+            return
+        except Exception as e:
+            last = e
+        finally:
+            try:
+                win32clipboard.CloseClipboard()
+            except Exception:
+                pass
+        time.sleep(0.3 + 0.2 * i)
+    raise KErr("clipboard", f"클립보드에 넣지 못함 ({last})")
 
 
 _DIB_CACHE = {}
@@ -351,12 +396,7 @@ def image_to_dib(path, max_px):
 
 def set_clipboard_image(path, max_px=1280):
     dib = image_to_dib(path, int(max_px or 0))
-    open_clipboard()
-    try:
-        win32clipboard.EmptyClipboard()
-        win32clipboard.SetClipboardData(win32clipboard.CF_DIB, dib)
-    finally:
-        win32clipboard.CloseClipboard()
+    _put_clipboard(win32clipboard.CF_DIB, dib)
 
 
 def window_pid(h):
@@ -488,12 +528,7 @@ def send_image(room_hwnd, path, cfg):
 
 
 def set_clipboard_text(text):
-    open_clipboard()
-    try:
-        win32clipboard.EmptyClipboard()
-        win32clipboard.SetClipboardData(win32clipboard.CF_UNICODETEXT, text)
-    finally:
-        win32clipboard.CloseClipboard()
+    _put_clipboard(win32clipboard.CF_UNICODETEXT, text)
 
 
 def send_text(room_hwnd, text):
@@ -513,9 +548,12 @@ def send_text(room_hwnd, text):
         click_center(edit)
         focus_input(room_hwnd, edit)
         time.sleep(0.3)
-        set_clipboard_text(text)
-        real_key(ord("V"), ctrl=True)
-        time.sleep(0.8)
+        try:
+            set_clipboard_text(text)
+            real_key(ord("V"), ctrl=True)
+            time.sleep(0.8)
+        except KErr as e:  # [1.0.2] 클립보드가 안 되면 붙여넣기 대신 입력창에 바로 넣기
+            log.info(f"  [안내] {e} -> 입력창에 바로 넣기")
         if not still_there():  # 붙여넣기가 안 됐으면 직접 입력
             set_text(edit, text)
             time.sleep(0.5)
